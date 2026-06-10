@@ -10,6 +10,7 @@ import { registerSalesModule } from './sales/routes'
 import { registerStockModule } from './stock/routes'
 import { registerSuppliersModule } from './suppliers/routes'
 import { registerUsersModule } from './users/routes'
+import { registerReportsModule } from './reports/routes'
 import { registerDashboardModule } from './dashboard/routes'
 import { registerAdminModule } from './admin/routes'
 
@@ -25,5 +26,6 @@ export function registerModules(app: FastifyInstance) {
   registerSalesModule(app)
   registerFinancialModule(app)
   registerDashboardModule(app)
+  registerReportsModule(app)
   registerAdminModule(app)
 }
