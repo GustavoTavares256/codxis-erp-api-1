@@ -16,11 +16,17 @@ export async function importProductsController(
     throw new AppError('Arquivo de produtos nao enviado.', 400)
   }
 
-  const summary = await importProductsService(user.companyId, {
-    filename: file.filename,
-    mimetype: file.mimetype,
-    buffer: await file.toBuffer(),
-  })
+  const summary = await importProductsService(
+    user.companyId,
+    {
+      filename: file.filename,
+      mimetype: file.mimetype,
+      buffer: await file.toBuffer(),
+    },
+    {
+      logger: request.log,
+    },
+  )
 
   return reply.status(200).send(summary)
 }

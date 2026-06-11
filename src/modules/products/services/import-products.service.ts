@@ -9,6 +9,7 @@ import {
   type ProductImportError,
   type ProductImportRow,
   assertSupportedImportFile,
+  normalizeProductImportHeader,
   parseCsv,
 } from './product-import-export.utils'
 
@@ -16,6 +17,16 @@ type ImportProductsFile = {
   filename: string
   mimetype: string
   buffer: Buffer
+}
+
+type ImportProductsLogger = {
+  info: (payload: unknown, message?: string) => void
+  warn: (payload: unknown, message?: string) => void
+  error: (payload: unknown, message?: string) => void
+}
+
+type ImportProductsOptions = {
+  logger?: ImportProductsLogger
 }
 
 type ValidProductRow = {
@@ -33,13 +44,25 @@ type ValidProductRow = {
 export async function importProductsService(
   companyId: string,
   file: ImportProductsFile,
+  options: ImportProductsOptions = {},
 ) {
   assertSupportedImportFile(file.filename, file.mimetype)
 
   const rows = parseProductRows(file)
   const errors: ProductImportError[] = []
+  const failedRows = new Set<number>()
   let created = 0
   let updated = 0
+
+  options.logger?.info(
+    {
+      companyId,
+      filename: file.filename,
+      mimetype: file.mimetype,
+      rowsRead: rows.length,
+    },
+    'Product import started',
+  )
 
   for (const [index, row] of rows.entries()) {
     const rowNumber = index + 2
@@ -47,6 +70,16 @@ export async function importProductsService(
 
     if (!validation.ok) {
       errors.push(...validation.errors)
+      failedRows.add(rowNumber)
+      options.logger?.warn(
+        {
+          companyId,
+          filename: file.filename,
+          row: rowNumber,
+          errors: validation.errors,
+        },
+        'Product import row rejected by validation',
+      )
       continue
     }
 
@@ -56,21 +89,48 @@ export async function importProductsService(
       if (result === 'created') created += 1
       if (result === 'updated') updated += 1
     } catch (error) {
-      errors.push({
+      const importError = {
         row: rowNumber,
         message:
           error instanceof Error
             ? error.message
             : 'Nao foi possivel importar esta linha.',
-      })
+      }
+
+      errors.push(importError)
+      failedRows.add(rowNumber)
+      options.logger?.error(
+        {
+          companyId,
+          filename: file.filename,
+          row: rowNumber,
+          error: importError.message,
+        },
+        'Product import row failed while saving',
+      )
     }
   }
 
-  return {
+  const summary = {
+    totalRows: rows.length,
+    rowsRead: rows.length,
+    imported: created + updated,
     created,
     updated,
+    failed: failedRows.size,
     errors,
   }
+
+  options.logger?.info(
+    {
+      companyId,
+      filename: file.filename,
+      ...summary,
+    },
+    'Product import finished',
+  )
+
+  return summary
 }
 
 function parseProductRows(file: ImportProductsFile): ProductImportRow[] {
@@ -89,12 +149,15 @@ function parseProductRows(file: ImportProductsFile): ProductImportRow[] {
 
     return jsonRows.map((row) => {
       const normalizedRow = Object.entries(row).reduce((record, [key, value]) => {
-        record[key.trim().toLowerCase()] = value
+        const field = normalizeProductImportHeader(key)
+
+        if (field) record[field] = value
+
         return record
       }, {} as Record<string, unknown>)
 
       return PRODUCT_IMPORT_EXPORT_FIELDS.reduce((record, field) => {
-        record[field] = String(normalizedRow[field.toLowerCase()] ?? '').trim()
+        record[field] = String(normalizedRow[field] ?? '').trim()
         return record
       }, {} as ProductImportRow)
     })
@@ -116,10 +179,12 @@ function validateProductImportRow(row: ProductImportRow, rowNumber: number) {
     }
   })
 
-  const costPrice = parseMoney(row.costPrice)
+  const costPrice = row.costPrice.trim() ? parseMoney(row.costPrice) : 0
   const salePrice = parseMoney(row.salePrice)
   const quantity = parseInteger(row.quantity)
-  const minimumStock = parseInteger(row.minimumStock)
+  const minimumStock = row.minimumStock.trim()
+    ? parseInteger(row.minimumStock)
+    : 0
   const unit = normalizeUnit(row.unit)
 
   if (costPrice === null || costPrice < 0) {
@@ -179,7 +244,7 @@ function validateProductImportRow(row: ProductImportRow, rowNumber: number) {
       quantity: quantity as number,
       minimumStock: minimumStock as number,
       unit: unit as (typeof PRODUCT_UNITS)[number],
-      category: row.category?.trim() || undefined,
+      category: row.category?.trim() || 'geral',
       sku: row.sku?.trim() || undefined,
     },
   }

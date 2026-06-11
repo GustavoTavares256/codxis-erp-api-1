@@ -42,11 +42,37 @@ export type ProductImportError = {
 
 export const REQUIRED_PRODUCT_IMPORT_FIELDS: ProductImportExportField[] = [
   'name',
-  'costPrice',
   'salePrice',
   'quantity',
-  'minimumStock',
 ]
+
+const PRODUCT_IMPORT_HEADER_ALIASES: Record<string, ProductImportExportField> = {
+  nome: 'name',
+  name: 'name',
+  produto: 'name',
+  descricao: 'description',
+  description: 'description',
+  preco_custo: 'costPrice',
+  costprice: 'costPrice',
+  custo: 'costPrice',
+  preco_venda: 'salePrice',
+  saleprice: 'salePrice',
+  preco: 'salePrice',
+  preço: 'salePrice',
+  quantidade: 'quantity',
+  quantity: 'quantity',
+  estoque: 'quantity',
+  stock: 'quantity',
+  estoque_minimo: 'minimumStock',
+  minimumstock: 'minimumStock',
+  minimo: 'minimumStock',
+  mínimo: 'minimumStock',
+  categoria: 'category',
+  category: 'category',
+  sku: 'sku',
+  unidade: 'unit',
+  unit: 'unit',
+}
 
 export function escapeCsvValue(value: unknown) {
   const normalized = value === null || value === undefined ? '' : String(value)
@@ -68,7 +94,7 @@ export function parseCsv(buffer: Buffer): ProductImportRow[] {
     .filter((row) => row.some((value) => value.trim()))
     .map((row) =>
       PRODUCT_IMPORT_EXPORT_FIELDS.reduce((record, field) => {
-        const index = headerMap.indexOf(field.toLowerCase())
+        const index = headerMap.indexOf(field)
         record[field] = index >= 0 ? (row[index] || '').trim() : ''
         return record
       }, {} as ProductImportRow),
@@ -128,8 +154,18 @@ function detectCsvDelimiter(content: string): ',' | ';' {
   return semicolonCount > commaCount ? ';' : ','
 }
 
+export function normalizeProductImportHeader(value: string) {
+  const normalized = value
+    .trim()
+    .replace(/^\uFEFF/, '')
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+
+  return PRODUCT_IMPORT_HEADER_ALIASES[normalized] || null
+}
+
 function normalizeHeader(value: string) {
-  return value.trim().replace(/^\uFEFF/, '').toLowerCase()
+  return normalizeProductImportHeader(value)
 }
 
 function stripBom(value: string) {
