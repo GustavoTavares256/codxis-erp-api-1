@@ -1,32 +1,46 @@
 import * as XLSX from 'xlsx'
 
 import { prisma } from '../../../shared/database/prisma'
+import { generateReportPdf } from '../../reports/services/report-pdf.service'
 import {
   PRODUCT_IMPORT_EXPORT_FIELDS,
   escapeCsvValue,
 } from './product-import-export.utils'
 
-type ExportProductsFormat = 'csv' | 'xlsx'
+type ExportProductsFormat = 'csv' | 'xlsx' | 'pdf'
 
 export async function exportProductsService(
   companyId: string,
   format: ExportProductsFormat,
 ) {
-  const products = await prisma.product.findMany({
-    where: {
-      companyId,
-    },
-    include: {
-      category: {
-        select: {
-          name: true,
+  const [company, products] = await Promise.all([
+    prisma.company.findUniqueOrThrow({
+      where: {
+        id: companyId,
+      },
+      select: {
+        name: true,
+        fantasyName: true,
+        document: true,
+        logoUrl: true,
+      },
+    }),
+    prisma.product.findMany({
+      where: {
+        companyId,
+      },
+      include: {
+        category: {
+          select: {
+            name: true,
+          },
         },
       },
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  })
+      orderBy: {
+        createdAt: 'desc',
+      },
+    }),
+  ])
 
   const rows = products.map((product) => ({
     name: product.name,
@@ -39,6 +53,41 @@ export async function exportProductsService(
     category: product.category?.name || '',
     sku: product.sku || '',
   }))
+
+  if (format === 'pdf') {
+    const buffer = await generateReportPdf({
+      title: 'Relatorio de Produtos',
+      company,
+      totals: [
+        {
+          label: 'Total de produtos',
+          value: String(products.length),
+        },
+      ],
+      columns: [
+        { key: 'name', label: 'Nome', width: 145 },
+        { key: 'category', label: 'Categoria', width: 95 },
+        { key: 'salePrice', label: 'Preco venda', width: 85, align: 'right' },
+        { key: 'quantity', label: 'Qtd.', width: 55, align: 'right' },
+        { key: 'unit', label: 'Un.', width: 45 },
+        { key: 'minimumStock', label: 'Min.', width: 55, align: 'right' },
+      ],
+      rows: rows.map((row) => ({
+        name: row.name,
+        category: row.category || '-',
+        salePrice: formatCurrency(Number(row.salePrice)),
+        quantity: row.quantity,
+        unit: row.unit,
+        minimumStock: row.minimumStock,
+      })),
+    })
+
+    return {
+      contentType: 'application/pdf',
+      filename: 'produtos.pdf',
+      buffer,
+    }
+  }
 
   if (format === 'xlsx') {
     const worksheet = XLSX.utils.json_to_sheet(rows, {
@@ -70,4 +119,11 @@ export async function exportProductsService(
     filename: 'produtos.csv',
     buffer: Buffer.from(`\uFEFF${csv}`, 'utf8'),
   }
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value)
 }

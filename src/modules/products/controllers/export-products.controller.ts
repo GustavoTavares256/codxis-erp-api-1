@@ -1,6 +1,11 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
+import { z } from 'zod'
 
 import { exportProductsService } from '../services/export-products.service'
+
+const exportProductsQuerySchema = z.object({
+  format: z.enum(['csv', 'xlsx', 'pdf']).default('csv'),
+})
 
 export async function exportProductsController(
   request: FastifyRequest,
@@ -9,10 +14,7 @@ export async function exportProductsController(
   const user = request.user as {
     companyId: string
   }
-  const query = request.query as {
-    format?: string
-  }
-  const format = query.format === 'xlsx' ? 'xlsx' : 'csv'
+  const { format } = exportProductsQuerySchema.parse(request.query)
   const exported = await exportProductsService(user.companyId, format)
 
   return reply
