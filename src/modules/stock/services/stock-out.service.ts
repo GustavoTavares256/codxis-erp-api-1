@@ -16,7 +16,7 @@ export async function stockOutService(
     throw new Error('Produto não encontrado')
   }
 
-  if (product.quantity < data.quantity) {
+  if (product.stock < data.quantity) {
     throw new Error('Estoque insuficiente')
   }
 
@@ -25,7 +25,7 @@ export async function stockOutService(
       id: product.id,
     },
     data: {
-      quantity: {
+      stock: {
         decrement: data.quantity,
       },
     },

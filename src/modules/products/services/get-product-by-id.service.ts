@@ -6,6 +6,10 @@ export async function getProductByIdService(companyId: string, productId: string
       id: productId,
       companyId,
     },
+    include: {
+      category: true,
+      supplier: true,
+    },
   })
 
   if (!product) {

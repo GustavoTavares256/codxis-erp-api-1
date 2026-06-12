@@ -43,15 +43,40 @@ export async function exportProductsService(
   ])
 
   const rows = products.map((product) => ({
+    code: product.code || '',
     name: product.name,
     description: product.description || '',
+    salePackage: product.salePackage || '',
+    salePackageQuantity: product.salePackageQuantity?.toString() || '',
+    purchasePrice: product.purchasePrice?.toString() || '',
     costPrice: product.costPrice.toString(),
+    markupPercent: product.markupPercent?.toString() || '',
     salePrice: product.salePrice.toString(),
-    quantity: product.quantity,
+    profitMarginPercent: product.profitMarginPercent?.toString() || '',
+    barcode: product.barcode || '',
+    taxableBarcode: product.taxableBarcode || '',
+    captureWeightOnScale: product.captureWeightOnScale ? 'true' : 'false',
+    quantity: product.stock,
     minimumStock: product.minimumStock,
+    expirationDate: product.expirationDate
+      ? product.expirationDate.toISOString().slice(0, 10)
+      : '',
+    commissionPercent: product.commissionPercent?.toString() || '',
+    factoryReference: product.factoryReference || '',
+    grossWeightKg: product.grossWeightKg?.toString() || '',
+    netWeightKg: product.netWeightKg?.toString() || '',
+    lengthCm: product.lengthCm?.toString() || '',
+    widthCm: product.widthCm?.toString() || '',
+    heightCm: product.heightCm?.toString() || '',
+    brand: product.brand || '',
+    supplierPackage: product.supplierPackage || '',
+    supplierPackageQuantity: product.supplierPackageQuantity?.toString() || '',
     unit: product.unit || 'UN',
     category: product.category?.name || '',
     sku: product.sku || '',
+    sizeColorGrid: product.sizeColorGrid || '',
+    imageUrl: product.imageUrl || '',
+    isActive: product.isActive ? 'true' : 'false',
   }))
 
   if (format === 'pdf') {

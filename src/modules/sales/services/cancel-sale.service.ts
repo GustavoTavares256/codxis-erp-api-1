@@ -41,7 +41,7 @@ export async function cancelSaleService(
           id: item.productId,
         },
         data: {
-          quantity: {
+          stock: {
             increment: item.quantity,
           },
         },

@@ -7,11 +7,11 @@ export async function listLowStockService(companyId: string) {
       isActive: true,
     },
     orderBy: {
-      quantity: 'asc',
+      stock: 'asc',
     },
   })
 
   return products.filter(
-    (product) => product.quantity <= product.minimumStock,
+    (product) => product.stock <= product.minimumStock,
   )
 }

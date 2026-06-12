@@ -1,7 +1,8 @@
-import type { Prisma } from '@prisma/client'
 import * as XLSX from 'xlsx'
+import type { Prisma } from '@prisma/client'
 
 import { prisma } from '../../../shared/database/prisma'
+import type { CreateProductInput } from '../schemas/product.schema'
 import {
   PRODUCT_IMPORT_EXPORT_FIELDS,
   PRODUCT_UNITS,
@@ -12,6 +13,7 @@ import {
   normalizeProductImportHeader,
   parseCsv,
 } from './product-import-export.utils'
+import { buildProductPayload } from './product-payload.utils'
 
 type ImportProductsFile = {
   filename: string
@@ -29,17 +31,7 @@ type ImportProductsOptions = {
   logger?: ImportProductsLogger
 }
 
-type ValidProductRow = {
-  name: string
-  description?: string
-  costPrice: number
-  salePrice: number
-  quantity: number
-  minimumStock: number
-  unit: (typeof PRODUCT_UNITS)[number]
-  category?: string
-  sku?: string
-}
+type ValidProductRow = CreateProductInput
 
 export async function importProductsService(
   companyId: string,
@@ -179,7 +171,10 @@ function validateProductImportRow(row: ProductImportRow, rowNumber: number) {
     }
   })
 
-  const costPrice = row.costPrice.trim() ? parseMoney(row.costPrice) : 0
+  const purchasePrice = row.purchasePrice.trim()
+    ? parseMoney(row.purchasePrice) ?? undefined
+    : undefined
+  const costPrice = row.costPrice.trim() ? parseMoney(row.costPrice) : purchasePrice ?? 0
   const salePrice = parseMoney(row.salePrice)
   const quantity = parseInteger(row.quantity)
   const minimumStock = row.minimumStock.trim()
@@ -239,40 +234,56 @@ function validateProductImportRow(row: ProductImportRow, rowNumber: number) {
     data: {
       name: row.name.trim(),
       description: row.description?.trim() || undefined,
+      code: row.code?.trim() || undefined,
+      salePackage: row.salePackage?.trim() || undefined,
+      salePackageQuantity: parseOptionalNumber(row.salePackageQuantity),
+      purchasePrice,
       costPrice: costPrice as number,
+      markupPercent: parseOptionalNumber(row.markupPercent),
       salePrice: salePrice as number,
+      profitMarginPercent: parseOptionalNumber(row.profitMarginPercent),
+      barcode: row.barcode?.trim() || undefined,
+      taxableBarcode: row.taxableBarcode?.trim() || undefined,
+      captureWeightOnScale: parseBoolean(row.captureWeightOnScale),
       quantity: quantity as number,
       minimumStock: minimumStock as number,
+      expirationDate: row.expirationDate?.trim() || undefined,
+      commissionPercent: parseOptionalNumber(row.commissionPercent),
+      factoryReference: row.factoryReference?.trim() || undefined,
+      grossWeightKg: parseOptionalNumber(row.grossWeightKg),
+      netWeightKg: parseOptionalNumber(row.netWeightKg),
+      lengthCm: parseOptionalNumber(row.lengthCm),
+      widthCm: parseOptionalNumber(row.widthCm),
+      heightCm: parseOptionalNumber(row.heightCm),
+      brand: row.brand?.trim() || undefined,
+      supplierPackage: row.supplierPackage?.trim() || undefined,
+      supplierPackageQuantity: parseOptionalNumber(row.supplierPackageQuantity),
       unit: unit as (typeof PRODUCT_UNITS)[number],
       category: row.category?.trim() || 'geral',
       sku: row.sku?.trim() || undefined,
+      sizeColorGrid: row.sizeColorGrid?.trim() || undefined,
+      imageUrl: row.imageUrl?.trim() || undefined,
+      isActive: row.isActive.trim() ? parseBoolean(row.isActive) : true,
     },
   }
 }
 
 async function saveImportedProduct(companyId: string, data: ValidProductRow) {
   return prisma.$transaction(async (transaction) => {
-    const categoryId = data.category
-      ? await findOrCreateCategory(transaction, companyId, data.category)
-      : undefined
+    const payload = await buildProductPayload(data, {
+      companyId,
+      transaction,
+      fallbackCategory: true,
+    })
 
-    const payload = {
-      name: data.name,
-      description: data.description || '',
-      costPrice: data.costPrice,
-      salePrice: data.salePrice,
-      quantity: data.quantity,
-      minimumStock: data.minimumStock,
-      unit: data.unit,
-      sku: data.sku,
-      categoryId,
-    }
-
-    const existingProduct = data.sku
+    const existingProduct = data.sku || data.code
       ? await transaction.product.findFirst({
           where: {
             companyId,
-            sku: data.sku,
+            OR: [
+              ...(data.sku ? [{ sku: data.sku }] : []),
+              ...(data.code ? [{ code: data.code }] : []),
+            ],
           },
         })
       : null
@@ -290,43 +301,16 @@ async function saveImportedProduct(companyId: string, data: ValidProductRow) {
 
     await transaction.product.create({
       data: {
-        ...payload,
+        ...(payload as Prisma.ProductUncheckedCreateInput),
+        name: data.name,
+        salePrice: payload.salePrice || data.salePrice,
+        costPrice: payload.costPrice || data.costPrice || data.purchasePrice || 0,
         companyId,
       },
     })
 
     return 'created' as const
   })
-}
-
-async function findOrCreateCategory(
-  transaction: Prisma.TransactionClient,
-  companyId: string,
-  name: string,
-) {
-  const existingCategory = await transaction.category.findFirst({
-    where: {
-      companyId,
-      name,
-    },
-    select: {
-      id: true,
-    },
-  })
-
-  if (existingCategory) return existingCategory.id
-
-  const category = await transaction.category.create({
-    data: {
-      companyId,
-      name,
-    },
-    select: {
-      id: true,
-    },
-  })
-
-  return category.id
 }
 
 function parseMoney(value: string) {
@@ -340,6 +324,18 @@ function parseMoney(value: string) {
   const numberValue = Number(normalized)
 
   return Number.isFinite(numberValue) ? numberValue : null
+}
+
+function parseOptionalNumber(value: string) {
+  if (!value?.trim()) return undefined
+
+  return parseMoney(value) ?? undefined
+}
+
+function parseBoolean(value: string) {
+  const normalized = String(value || '').trim().toLowerCase()
+
+  return ['true', '1', 'sim', 's', 'yes'].includes(normalized)
 }
 
 function parseInteger(value: string) {

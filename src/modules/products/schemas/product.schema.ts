@@ -17,20 +17,47 @@ export const productUnitSchema = z.enum([
   'FD',
 ])
 
+const optionalString = z.string().trim().optional().or(z.literal('').transform(() => undefined))
+const optionalNumber = z.coerce.number().nonnegative().optional()
+const optionalPercent = z.coerce.number().min(0).optional()
+
 export const createProductSchema = z.object({
   name: z.string().min(2),
-  description: z.string().optional(),
-  sku: z.string().optional(),
-  barcode: z.string().optional(),
-
-  costPrice: z.number().positive(),
-  salePrice: z.number().positive(),
-
-  quantity: z.number().int().min(0).default(0),
-  minimumStock: z.number().int().min(0).default(0),
+  description: optionalString,
+  code: optionalString,
+  sku: optionalString,
+  salePackage: optionalString,
+  salePackageQuantity: optionalNumber,
+  purchasePrice: optionalNumber,
+  costPrice: z.coerce.number().nonnegative().default(0),
+  markupPercent: optionalPercent,
+  salePrice: z.coerce.number().positive(),
+  profitMarginPercent: optionalPercent,
+  barcode: optionalString,
+  taxableBarcode: optionalString,
+  captureWeightOnScale: z.coerce.boolean().default(false),
+  stock: z.coerce.number().int().min(0).optional(),
+  quantity: z.coerce.number().int().min(0).optional(),
+  minimumStock: z.coerce.number().int().min(0).default(0),
+  expirationDate: optionalString,
+  commissionPercent: optionalPercent,
+  factoryReference: optionalString,
+  grossWeightKg: optionalNumber,
+  netWeightKg: optionalNumber,
+  lengthCm: optionalNumber,
+  widthCm: optionalNumber,
+  heightCm: optionalNumber,
+  brand: optionalString,
+  supplierPackage: optionalString,
+  supplierPackageQuantity: optionalNumber,
+  sizeColorGrid: optionalString,
+  imageUrl: optionalString,
+  image: optionalString,
   unit: productUnitSchema.default('UN'),
+  isActive: z.coerce.boolean().default(true),
 
   categoryId: z.string().uuid().optional(),
+  category: optionalString,
   supplierId: z.string().uuid().optional(),
 })
 

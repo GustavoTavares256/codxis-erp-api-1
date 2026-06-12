@@ -5,6 +5,10 @@ export async function listProductsService(companyId: string) {
     where: {
       companyId,
     },
+    include: {
+      category: true,
+      supplier: true,
+    },
     orderBy: {
       createdAt: 'desc',
     },

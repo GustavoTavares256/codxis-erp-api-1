@@ -1,5 +1,6 @@
 import { prisma } from '../../../shared/database/prisma'
 import type { UpdateProductInput } from '../schemas/product.schema'
+import { buildProductPayload } from './product-payload.utils'
 
 export async function updateProductService(
   companyId: string,
@@ -17,11 +18,19 @@ export async function updateProductService(
     throw new Error('Produto não encontrado')
   }
 
+  const payload = await buildProductPayload(data, {
+    companyId,
+  })
+
   const product = await prisma.product.update({
     where: {
       id: productId,
     },
-    data,
+    data: payload,
+    include: {
+      category: true,
+      supplier: true,
+    },
   })
 
   return product

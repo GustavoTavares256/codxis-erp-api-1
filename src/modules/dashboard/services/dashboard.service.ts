@@ -136,7 +136,7 @@ export async function dashboardService(companyId: string) {
   ])
 
   const lowStockItems = lowStockProducts.filter(
-    (product) => product.quantity <= product.minimumStock,
+    (product) => product.stock <= product.minimumStock,
   )
   const lowStockCount = lowStockItems.length
 
@@ -187,7 +187,7 @@ export async function dashboardService(companyId: string) {
     lowStockProducts: lowStockItems.slice(0, 5).map((product) => ({
       id: product.id,
       name: product.name,
-      quantity: product.quantity,
+      quantity: product.stock,
       minimumStock: product.minimumStock,
       unit: product.unit || 'UN',
     })),
@@ -200,7 +200,7 @@ export async function dashboardService(companyId: string) {
     productsWithoutMovementList: productsWithoutMovement.slice(0, 10).map((product) => ({
       id: product.id,
       name: product.name,
-      quantity: product.quantity,
+      quantity: product.stock,
       unit: product.unit || 'UN',
     })),
     salesByMonth: monthlySeries.map((item) => ({
@@ -216,9 +216,9 @@ export async function dashboardService(companyId: string) {
   }
 }
 
-type CompletedSale = Awaited<
-  ReturnType<typeof prisma.sale.findMany>
->[number] & {
+type CompletedSale = {
+  createdAt: Date
+  totalAmount: unknown
   customer?: {
     id: string
     name: string
@@ -226,6 +226,8 @@ type CompletedSale = Awaited<
   items?: Array<{
     quantity: number
     subtotal: unknown
+    productName: string
+    unit: string
     product: {
       id: string
       name: string
@@ -280,10 +282,10 @@ function buildTopProducts(sales: CompletedSale[]) {
     sale.items?.forEach((item) => {
       const current = products.get(item.product.id) || {
         id: item.product.id,
-        name: item.product.name,
+        name: item.productName || item.product.name,
         quantity: 0,
         revenue: 0,
-        unit: item.product.unit || 'UN',
+        unit: item.unit || item.product.unit || 'UN',
       }
 
       current.quantity += item.quantity

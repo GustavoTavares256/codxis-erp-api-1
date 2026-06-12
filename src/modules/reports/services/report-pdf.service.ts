@@ -324,7 +324,10 @@ function drawSalesItem(
 
   const quantity = String(item.quantity).padStart(2, '0')
   const unit = formatSalesUnit(item.unit)
-  const text = `${quantity} ${unit} de ${item.productName} a ${formatSalesCurrency(Number(item.unitPrice))}`
+  const subtotal = item.subtotal === null || item.subtotal === undefined
+    ? ''
+    : ` = ${formatSalesCurrency(Number(item.subtotal))}`
+  const text = `${quantity} ${unit} de ${item.productName} a ${formatSalesCurrency(Number(item.unitPrice))}${subtotal}`
 
   document
     .font('Helvetica')

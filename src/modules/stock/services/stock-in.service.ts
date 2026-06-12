@@ -21,7 +21,7 @@ export async function stockInService(
       id: product.id,
     },
     data: {
-      quantity: {
+      stock: {
         increment: data.quantity,
       },
     },

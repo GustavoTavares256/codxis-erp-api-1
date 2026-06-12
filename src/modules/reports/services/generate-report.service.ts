@@ -64,13 +64,13 @@ async function generateStockReport(
       name: 'asc',
     },
   })
-  const totalQuantity = products.reduce((acc, product) => acc + product.quantity, 0)
+  const totalQuantity = products.reduce((acc, product) => acc + product.stock, 0)
   const totalStockValue = products.reduce(
-    (acc, product) => acc + Number(product.costPrice) * product.quantity,
+    (acc, product) => acc + Number(product.costPrice) * product.stock,
     0,
   )
   const lowStock = products.filter(
-    (product) => product.quantity <= product.minimumStock,
+    (product) => product.stock <= product.minimumStock,
   ).length
 
   const buffer = await generateReportPdf({
@@ -95,7 +95,7 @@ async function generateStockReport(
       name: product.name,
       sku: product.sku || '-',
       category: product.category?.name || '-',
-      quantity: product.quantity,
+      quantity: product.stock,
       minimumStock: product.minimumStock,
       unit: product.unit || 'UN',
       costPrice: formatCurrency(Number(product.costPrice)),
@@ -153,8 +153,8 @@ async function generateSalesReport(
       totalAmount: sale.totalAmount.toString(),
       items: sale.items.map((item) => ({
         quantity: item.quantity,
-        unit: item.product.unit,
-        productName: item.product.name,
+        unit: item.unit,
+        productName: item.productName,
         unitPrice: item.unitPrice.toString(),
         subtotal: item.subtotal?.toString(),
       })),

@@ -28,11 +28,14 @@ export async function createSaleService(
       throw new Error('Produto não encontrado')
     }
 
-    if (product.quantity < item.quantity) {
+    if (product.stock < item.quantity) {
       throw new Error(`Estoque insuficiente para ${product.name}`)
     }
 
-    totalAmount += Number(product.salePrice) * item.quantity
+    const unitPrice = item.unitPrice ?? Number(product.salePrice)
+    const discount = item.discount ?? 0
+
+    totalAmount += Math.max(unitPrice * item.quantity - discount, 0)
   }
 
   const sale = await prisma.$transaction(async (tx) => {
@@ -49,9 +52,16 @@ export async function createSaleService(
 
             return {
               productId: item.productId,
+              productName: item.productName || product.name,
               quantity: item.quantity,
-              unitPrice: product.salePrice,
-              subtotal: Number(product.salePrice) * item.quantity,
+              unit: item.unit || product.unit || 'UN',
+              unitPrice: item.unitPrice ?? product.salePrice,
+              discount: item.discount ?? 0,
+              subtotal: Math.max(
+                Number(item.unitPrice ?? product.salePrice) * item.quantity -
+                  Number(item.discount ?? 0),
+                0,
+              ),
             }
           }),
         },
@@ -67,7 +77,7 @@ export async function createSaleService(
           id: item.productId,
         },
         data: {
-          quantity: {
+          stock: {
             decrement: item.quantity,
           },
         },
