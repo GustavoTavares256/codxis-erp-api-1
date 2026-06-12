@@ -1,4 +1,5 @@
 import { prisma } from '../../../shared/database/prisma'
+import { AppError } from '../../../shared/errors/app-error'
 import {
   generateReportPdf,
   generateSalesManifestPdf,
@@ -6,6 +7,12 @@ import {
 } from './report-pdf.service'
 
 export type ReportType = 'stock' | 'sales' | 'financial' | 'customers'
+
+export type ReportFilters = {
+  date?: string
+  startDate?: string
+  endDate?: string
+}
 
 type ReportConfig = {
   title: string
@@ -16,6 +23,7 @@ type ReportConfig = {
 export async function generateReportService(
   companyId: string,
   type: ReportType,
+  filters: ReportFilters = {},
 ): Promise<ReportConfig> {
   const company = await prisma.company.findUniqueOrThrow({
     where: {
@@ -30,7 +38,7 @@ export async function generateReportService(
   })
 
   if (type === 'stock') return generateStockReport(companyId, company)
-  if (type === 'sales') return generateSalesReport(companyId, company)
+  if (type === 'sales') return generateSalesReport(companyId, company, filters)
   if (type === 'financial') return generateFinancialReport(companyId, company)
 
   return generateCustomersReport(companyId, company)
@@ -100,10 +108,17 @@ async function generateStockReport(
 async function generateSalesReport(
   companyId: string,
   company: ReportCompany,
+  filters: ReportFilters,
 ): Promise<ReportConfig> {
+  const period = resolveSalesPeriod(filters)
+
   const sales = await prisma.sale.findMany({
     where: {
       companyId,
+      createdAt: {
+        gte: period.start,
+        lt: period.end,
+      },
     },
     include: {
       customer: {
@@ -130,6 +145,7 @@ async function generateSalesReport(
   const buffer = await generateSalesManifestPdf({
     title: 'Relatório de Vendas Detalhado',
     company,
+    periodLabel: period.label,
     sales: sales.map((sale) => ({
       customerName: sale.customer?.name || 'Sem cliente',
       payment: formatPaymentMethod(sale.paymentMethod),
@@ -286,4 +302,122 @@ function formatPaymentMethod(value: string) {
   }
 
   return labels[value] || value
+}
+
+const BRAZIL_TIME_ZONE = 'America/Sao_Paulo'
+
+type SalesPeriod = {
+  start: Date
+  end: Date
+  label: string
+}
+
+function resolveSalesPeriod(filters: ReportFilters): SalesPeriod {
+  if (filters.date) {
+    return buildSingleDayPeriod(filters.date)
+  }
+
+  if (filters.startDate && filters.endDate) {
+    return buildDateRangePeriod(filters.startDate, filters.endDate)
+  }
+
+  return buildSingleDayPeriod(getTodayInBrazil())
+}
+
+function buildSingleDayPeriod(date: string): SalesPeriod {
+  return {
+    start: startOfBrazilDate(date),
+    end: startOfBrazilDate(addDays(date, 1)),
+    label: formatPeriodDate(date),
+  }
+}
+
+function buildDateRangePeriod(startDate: string, endDate: string): SalesPeriod {
+  if (startDate > endDate) {
+    throw new AppError('startDate nao pode ser maior que endDate')
+  }
+
+  return {
+    start: startOfBrazilDate(startDate),
+    end: startOfBrazilDate(addDays(endDate, 1)),
+    label: `${formatPeriodDate(startDate)} até ${formatPeriodDate(endDate)}`,
+  }
+}
+
+function startOfBrazilDate(date: string) {
+  const [year, month, day] = date.split('-').map(Number)
+
+  return zonedDateTimeToUtc(year, month, day)
+}
+
+function zonedDateTimeToUtc(year: number, month: number, day: number) {
+  const utcGuess = Date.UTC(year, month - 1, day)
+  const firstResult = new Date(utcGuess - getTimeZoneOffsetMs(new Date(utcGuess)))
+  const secondOffset = getTimeZoneOffsetMs(firstResult)
+
+  return new Date(utcGuess - secondOffset)
+}
+
+function getTimeZoneOffsetMs(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BRAZIL_TIME_ZONE,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(date)
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, Number(part.value)]),
+  )
+
+  const localAsUtc = Date.UTC(
+    values.year,
+    values.month - 1,
+    values.day,
+    values.hour,
+    values.minute,
+    values.second,
+  )
+
+  return localAsUtc - date.getTime()
+}
+
+function getTodayInBrazil() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BRAZIL_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  )
+
+  return `${values.year}-${values.month}-${values.day}`
+}
+
+function addDays(date: string, days: number) {
+  const [year, month, day] = date.split('-').map(Number)
+  const result = new Date(Date.UTC(year, month - 1, day + days))
+
+  return [
+    result.getUTCFullYear(),
+    String(result.getUTCMonth() + 1).padStart(2, '0'),
+    String(result.getUTCDate()).padStart(2, '0'),
+  ].join('-')
+}
+
+function formatPeriodDate(date: string) {
+  const [year, month, day] = date.split('-')
+
+  return `${day}/${month}/${year}`
 }

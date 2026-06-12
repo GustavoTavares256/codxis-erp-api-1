@@ -33,6 +33,7 @@ type GenerateSalesManifestPdfInput = {
     document?: string | null
     logoUrl?: string | null
   }
+  periodLabel: string
   sales: Array<{
     customerName: string
     payment: string
@@ -218,22 +219,28 @@ function drawSalesManifestHeader(
     .font('Helvetica')
     .fontSize(10)
     .fillColor('#111827')
-    .text(`Empresa: ${companyName || 'Empresa'}`, PAGE_MARGIN, PAGE_MARGIN + 28)
+    .text(`Período: ${input.periodLabel}`, PAGE_MARGIN, PAGE_MARGIN + 28)
+
+  document
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor('#111827')
+    .text(`Empresa: ${companyName || 'Empresa'}`, PAGE_MARGIN, PAGE_MARGIN + 46)
 
   document
     .font('Helvetica')
     .fontSize(10)
     .fillColor('#667085')
-    .text(`Data de emissão: ${issuedAt}`, PAGE_MARGIN, PAGE_MARGIN + 46)
+    .text(`Data de emissão: ${issuedAt}`, PAGE_MARGIN, PAGE_MARGIN + 64)
 
   document
-    .moveTo(PAGE_MARGIN, PAGE_MARGIN + 70)
-    .lineTo(document.page.width - PAGE_MARGIN, PAGE_MARGIN + 70)
+    .moveTo(PAGE_MARGIN, PAGE_MARGIN + 88)
+    .lineTo(document.page.width - PAGE_MARGIN, PAGE_MARGIN + 88)
     .lineWidth(1)
     .strokeColor('#d9dee7')
     .stroke()
 
-  document.y = PAGE_MARGIN + 90
+  document.y = PAGE_MARGIN + 108
 }
 
 function drawSalesSection(
