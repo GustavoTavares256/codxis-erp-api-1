@@ -1,6 +1,7 @@
 import { prisma } from '../../../shared/database/prisma'
 import {
   generateReportPdf,
+  generateSalesManifestPdf,
   type ReportMetric,
 } from './report-pdf.service'
 
@@ -110,47 +111,37 @@ async function generateSalesReport(
           name: true,
         },
       },
-      items: true,
+      items: {
+        include: {
+          product: {
+            select: {
+              name: true,
+              unit: true,
+            },
+          },
+        },
+      },
     },
     orderBy: {
-      createdAt: 'desc',
+      createdAt: 'asc',
     },
   })
-  const completedSales = sales.filter((sale) => sale.status === 'COMPLETED')
-  const totalRevenue = completedSales.reduce(
-    (acc, sale) => acc + Number(sale.totalAmount),
-    0,
-  )
-  const totalItems = sales.reduce(
-    (acc, sale) =>
-      acc + sale.items.reduce((itemsAcc, item) => itemsAcc + item.quantity, 0),
-    0,
-  )
 
-  const buffer = await generateReportPdf({
-    title: 'Relatorio de Vendas',
+  const buffer = await generateSalesManifestPdf({
+    title: 'Relatório de Vendas Detalhado',
     company,
-    totals: [
-      metric('Vendas', sales.length),
-      metric('Concluidas', completedSales.length),
-      metric('Itens vendidos', totalItems),
-      metric('Faturamento', formatCurrency(totalRevenue)),
-    ],
-    columns: [
-      { key: 'date', label: 'Data', width: 70 },
-      { key: 'customer', label: 'Cliente', width: 160 },
-      { key: 'paymentMethod', label: 'Pagamento', width: 80 },
-      { key: 'status', label: 'Status', width: 80 },
-      { key: 'items', label: 'Itens', width: 55, align: 'right' },
-      { key: 'total', label: 'Total', width: 90, align: 'right' },
-    ],
-    rows: sales.map((sale) => ({
-      date: formatDate(sale.createdAt),
-      customer: sale.customer?.name || 'Sem cliente',
-      paymentMethod: sale.paymentMethod,
-      status: sale.status,
-      items: sale.items.reduce((acc, item) => acc + item.quantity, 0),
-      total: formatCurrency(Number(sale.totalAmount)),
+    sales: sales.map((sale) => ({
+      customerName: sale.customer?.name || 'Sem cliente',
+      payment: formatPaymentMethod(sale.paymentMethod),
+      createdAt: sale.createdAt,
+      totalAmount: sale.totalAmount.toString(),
+      items: sale.items.map((item) => ({
+        quantity: item.quantity,
+        unit: item.product.unit,
+        productName: item.product.name,
+        unitPrice: item.unitPrice.toString(),
+        subtotal: item.subtotal?.toString(),
+      })),
     })),
   })
 
@@ -285,4 +276,14 @@ function formatCurrency(value: number) {
     style: 'currency',
     currency: 'BRL',
   }).format(value)
+}
+
+function formatPaymentMethod(value: string) {
+  const labels: Record<string, string> = {
+    PIX: 'PIX',
+    CASH: 'Dinheiro',
+    CARD: 'Cartao',
+  }
+
+  return labels[value] || value
 }

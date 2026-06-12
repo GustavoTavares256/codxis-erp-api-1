@@ -25,8 +25,32 @@ type GenerateReportPdfInput<T extends Record<string, string | number>> = {
   totals: ReportMetric[]
 }
 
+type GenerateSalesManifestPdfInput = {
+  title: string
+  company: {
+    name: string
+    fantasyName?: string | null
+    document?: string | null
+    logoUrl?: string | null
+  }
+  sales: Array<{
+    customerName: string
+    payment: string
+    createdAt: Date
+    totalAmount: string | number
+    items: Array<{
+      quantity: number
+      unit?: string | null
+      productName: string
+      unitPrice: string | number
+      subtotal?: string | number | null
+    }>
+  }>
+}
+
 const PAGE_MARGIN = 42
 const FOOTER_HEIGHT = 34
+const PAGE_BOTTOM = PAGE_MARGIN + FOOTER_HEIGHT
 
 export async function generateReportPdf<T extends Record<string, string | number>>(
   input: GenerateReportPdfInput<T>,
@@ -52,6 +76,44 @@ export async function generateReportPdf<T extends Record<string, string | number
     drawTable(document, input.columns, input.rows)
     drawPagination(document)
 
+    document.end()
+  })
+}
+
+export async function generateSalesManifestPdf(
+  input: GenerateSalesManifestPdfInput,
+) {
+  return new Promise<Buffer>((resolve, reject) => {
+    const document = new PDFDocument({
+      size: 'A4',
+      margin: PAGE_MARGIN,
+      bufferPages: true,
+      info: {
+        Title: input.title,
+        Author: 'CodXis ERP',
+      },
+    })
+    const chunks: Buffer[] = []
+
+    document.on('data', (chunk) => chunks.push(chunk as Buffer))
+    document.on('end', () => resolve(Buffer.concat(chunks)))
+    document.on('error', reject)
+
+    drawSalesManifestHeader(document, input)
+
+    if (input.sales.length === 0) {
+      document
+        .font('Helvetica')
+        .fontSize(10)
+        .fillColor('#667085')
+        .text('Nenhum pedido encontrado para este relatorio.', PAGE_MARGIN, document.y)
+    } else {
+      input.sales.forEach((sale, index) => {
+        drawSalesSection(document, sale, index)
+      })
+    }
+
+    drawPagination(document)
     document.end()
   })
 }
@@ -134,6 +196,164 @@ function drawLogo(document: PDFKit.PDFDocument, logoUrl?: string | null) {
       width: 92,
       align: 'center',
     })
+}
+
+function drawSalesManifestHeader(
+  document: PDFKit.PDFDocument,
+  input: GenerateSalesManifestPdfInput,
+) {
+  const companyName = input.company.fantasyName || input.company.name
+  const issuedAt = new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date())
+
+  document
+    .fillColor('#111827')
+    .font('Helvetica-Bold')
+    .fontSize(18)
+    .text(input.title, PAGE_MARGIN, PAGE_MARGIN)
+
+  document
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor('#111827')
+    .text(`Empresa: ${companyName || 'Empresa'}`, PAGE_MARGIN, PAGE_MARGIN + 28)
+
+  document
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor('#667085')
+    .text(`Data de emissão: ${issuedAt}`, PAGE_MARGIN, PAGE_MARGIN + 46)
+
+  document
+    .moveTo(PAGE_MARGIN, PAGE_MARGIN + 70)
+    .lineTo(document.page.width - PAGE_MARGIN, PAGE_MARGIN + 70)
+    .lineWidth(1)
+    .strokeColor('#d9dee7')
+    .stroke()
+
+  document.y = PAGE_MARGIN + 90
+}
+
+function drawSalesSection(
+  document: PDFKit.PDFDocument,
+  sale: GenerateSalesManifestPdfInput['sales'][number],
+  index: number,
+) {
+  const sectionNumber = String(index + 1).padStart(2, '0')
+  const estimatedHeight = 126 + sale.items.length * 22
+
+  ensureSalesSpace(document, Math.min(estimatedHeight, 220))
+
+  document
+    .font('Helvetica-Bold')
+    .fontSize(12)
+    .fillColor('#111827')
+    .text(`${sectionNumber} - Cliente: ${sale.customerName}`, PAGE_MARGIN, document.y, {
+      width: document.page.width - PAGE_MARGIN * 2,
+    })
+
+  document
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor('#111827')
+    .text(`Pagamento: ${sale.payment}`, PAGE_MARGIN, document.y + 4)
+
+  document
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor('#111827')
+    .text(`Data: ${formatSalesDate(sale.createdAt)}`, PAGE_MARGIN, document.y + 4)
+
+  document.moveDown(1)
+  document
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor('#111827')
+    .text('Produtos')
+
+  document.moveDown(0.35)
+
+  if (sale.items.length === 0) {
+    ensureSalesSpace(document, 18)
+    document
+      .font('Helvetica')
+      .fontSize(9)
+      .fillColor('#667085')
+      .text('Nenhum item registrado neste pedido.', PAGE_MARGIN + 12)
+  } else {
+    sale.items.forEach((item) => {
+      drawSalesItem(document, item)
+    })
+  }
+
+  ensureSalesSpace(document, 48)
+  document.moveDown(0.5)
+  document
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor('#111827')
+    .text(`Total do pedido: ${formatSalesCurrency(Number(sale.totalAmount))}`, PAGE_MARGIN, document.y)
+
+  document.moveDown(0.7)
+  document
+    .moveTo(PAGE_MARGIN, document.y)
+    .lineTo(document.page.width - PAGE_MARGIN, document.y)
+    .dash(3, { space: 3 })
+    .strokeColor('#98a2b3')
+    .lineWidth(1)
+    .stroke()
+    .undash()
+
+  document.moveDown(1)
+}
+
+function drawSalesItem(
+  document: PDFKit.PDFDocument,
+  item: GenerateSalesManifestPdfInput['sales'][number]['items'][number],
+) {
+  ensureSalesSpace(document, 22)
+
+  const quantity = String(item.quantity).padStart(2, '0')
+  const unit = formatSalesUnit(item.unit)
+  const text = `${quantity} ${unit} de ${item.productName} a ${formatSalesCurrency(Number(item.unitPrice))}`
+
+  document
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor('#111827')
+    .text(text, PAGE_MARGIN + 12, document.y, {
+      width: document.page.width - PAGE_MARGIN * 2 - 12,
+    })
+
+  document.moveDown(0.45)
+}
+
+function ensureSalesSpace(document: PDFKit.PDFDocument, height: number) {
+  if (document.y + height > document.page.height - PAGE_BOTTOM) {
+    document.addPage()
+  }
+}
+
+function formatSalesDate(value: Date) {
+  return new Intl.DateTimeFormat('pt-BR').format(value)
+}
+
+function formatSalesCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value)
+}
+
+function formatSalesUnit(unit?: string | null) {
+  const normalized = String(unit || '').trim().toUpperCase()
+
+  if (!normalized || normalized === 'UN') return 'UN'
+  if (normalized === 'PC') return 'Pcs'
+
+  return normalized
 }
 
 function drawTotals(document: PDFKit.PDFDocument, totals: ReportMetric[]) {
