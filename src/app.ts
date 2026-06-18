@@ -34,9 +34,30 @@ export function buildApp() {
 
   app.setErrorHandler(errorHandler);
 
+  app.get("/", async () => {
+    return {
+      message: "CodXis ERP API online",
+      status: "ok",
+    };
+  });
+
+  app.get("/health", async () => {
+    return {
+      status: "ok",
+    };
+  });
+
   registerHooks(app);
   registerMiddlewares(app);
   registerModules(app);
+
+  app.setNotFoundHandler((request, reply) => {
+    return reply.status(404).send({
+      message: `Rota ${request.method}:${request.url} nao encontrada`,
+      error: "Nao encontrado",
+      statusCode: 404,
+    });
+  });
 
   return app;
 }

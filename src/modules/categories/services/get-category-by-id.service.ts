@@ -1,4 +1,5 @@
 import { prisma } from '../../../shared/database/prisma'
+import { AppError } from '../../../shared/errors/app-error'
 
 export async function getCategoryByIdService(
   companyId: string,
@@ -12,7 +13,7 @@ export async function getCategoryByIdService(
   })
 
   if (!category) {
-    throw new Error('Categoria não encontrada')
+    throw new AppError('Categoria nao encontrada', 404)
   }
 
   return category

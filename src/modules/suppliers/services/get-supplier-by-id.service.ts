@@ -1,4 +1,5 @@
 import { prisma } from '../../../shared/database/prisma'
+import { AppError } from '../../../shared/errors/app-error'
 
 export async function getSupplierByIdService(
   companyId: string,
@@ -12,7 +13,7 @@ export async function getSupplierByIdService(
   })
 
   if (!supplier) {
-    throw new Error('Fornecedor não encontrado')
+    throw new AppError('Fornecedor nao encontrado', 404)
   }
 
   return supplier

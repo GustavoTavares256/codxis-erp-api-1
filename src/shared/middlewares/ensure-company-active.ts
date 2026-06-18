@@ -51,7 +51,9 @@ export async function ensureCompanyActive(
   }
 
   if (userPayload.role === 'SUPER_ADMIN') {
-    return
+    return reply.status(403).send({
+      message: 'Selecione uma empresa antes de acessar recursos da empresa',
+    })
   }
 
   if (userPayload.role === 'SUPPORT' && userPayload.impersonating) {

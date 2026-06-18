@@ -1,4 +1,5 @@
 import { prisma } from '../../../shared/database/prisma'
+import { AppError } from '../../../shared/errors/app-error'
 
 export async function getCustomerByIdService(
   companyId: string,
@@ -12,7 +13,7 @@ export async function getCustomerByIdService(
   })
 
   if (!customer) {
-    throw new Error('Cliente não encontrado')
+    throw new AppError('Cliente nao encontrado', 404)
   }
 
   return customer

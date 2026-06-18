@@ -17,9 +17,39 @@ export const productUnitSchema = z.enum([
   'FD',
 ])
 
-const optionalString = z.string().trim().optional().or(z.literal('').transform(() => undefined))
-const optionalNumber = z.coerce.number().nonnegative().optional()
-const optionalPercent = z.coerce.number().min(0).optional()
+const optionalString = z.preprocess(
+  (value) => {
+    if (value === null || value === undefined) return undefined
+    if (typeof value !== 'string') return value
+
+    const trimmed = value.trim()
+
+    return trimmed || undefined
+  },
+  z.string().optional(),
+)
+const optionalNumber = z.preprocess(
+  (value) => {
+    if (value === null || value === undefined || value === '') return undefined
+    if (typeof value === 'string' && value.trim() === '') return undefined
+
+    return value
+  },
+  z.coerce.number().finite().nonnegative().optional(),
+)
+const optionalPercent = z.preprocess(
+  (value) => {
+    if (value === null || value === undefined || value === '') return undefined
+    if (typeof value === 'string' && value.trim() === '') return undefined
+
+    return value
+  },
+  z.coerce.number().finite().min(0).optional(),
+)
+const optionalUuid = z.preprocess(
+  (value) => (value === null || value === '' ? undefined : value),
+  z.string().uuid().optional(),
+)
 
 export const createProductSchema = z.object({
   name: z.string().min(2),
@@ -56,9 +86,9 @@ export const createProductSchema = z.object({
   unit: productUnitSchema.default('UN'),
   isActive: z.coerce.boolean().default(true),
 
-  categoryId: z.string().uuid().optional(),
+  categoryId: optionalUuid,
   category: optionalString,
-  supplierId: z.string().uuid().optional(),
+  supplierId: optionalUuid,
 })
 
 export type CreateProductInput = z.infer<typeof createProductSchema>

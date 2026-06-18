@@ -1,4 +1,5 @@
 import { prisma } from '../../../shared/database/prisma'
+import { AppError } from '../../../shared/errors/app-error'
 
 export async function getProductByIdService(companyId: string, productId: string) {
   const product = await prisma.product.findFirst({
@@ -13,7 +14,7 @@ export async function getProductByIdService(companyId: string, productId: string
   })
 
   if (!product) {
-    throw new Error('Produto não encontrado')
+    throw new AppError('Produto nao encontrado', 404)
   }
 
   return product

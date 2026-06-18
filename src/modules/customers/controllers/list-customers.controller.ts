@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 
+import { getSearchFromQuery } from '../../../shared/http/search-query'
 import { listCustomersService } from '../services/list-customers.service'
 
 export async function listCustomersController(
@@ -10,7 +11,9 @@ export async function listCustomersController(
     companyId: string
   }
 
-  const customers = await listCustomersService(user.companyId)
+  const customers = await listCustomersService(user.companyId, {
+    search: getSearchFromQuery(request.query),
+  })
 
   return reply.status(200).send(customers)
 }

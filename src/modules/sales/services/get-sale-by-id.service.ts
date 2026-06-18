@@ -1,4 +1,5 @@
 import { prisma } from '../../../shared/database/prisma'
+import { AppError } from '../../../shared/errors/app-error'
 
 export async function getSaleByIdService(
   companyId: string,
@@ -28,7 +29,7 @@ export async function getSaleByIdService(
   })
 
   if (!sale) {
-    throw new Error('Venda não encontrada')
+    throw new AppError('Venda nao encontrada', 404)
   }
 
   return sale

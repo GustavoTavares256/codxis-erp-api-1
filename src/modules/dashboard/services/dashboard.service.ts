@@ -43,6 +43,12 @@ export async function dashboardService(companyId: string) {
         companyId,
         isActive: true,
       },
+      select: {
+        id: true,
+        name: true,
+        stock: true,
+        minimumStock: true,
+      },
     }),
 
     prisma.financialTransaction.findMany({
@@ -56,7 +62,9 @@ export async function dashboardService(companyId: string) {
         companyId,
         status: 'COMPLETED',
       },
-      include: {
+      select: {
+        createdAt: true,
+        totalAmount: true,
         customer: {
           select: {
             id: true,
@@ -64,12 +72,13 @@ export async function dashboardService(companyId: string) {
           },
         },
         items: {
-          include: {
+          select: {
+            quantity: true,
+            subtotal: true,
             product: {
               select: {
                 id: true,
                 name: true,
-                unit: true,
               },
             },
           },
@@ -121,7 +130,10 @@ export async function dashboardService(companyId: string) {
         companyId,
         isActive: true,
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        stock: true,
         _count: {
           select: {
             saleItems: true,
@@ -189,7 +201,7 @@ export async function dashboardService(companyId: string) {
       name: product.name,
       quantity: product.stock,
       minimumStock: product.minimumStock,
-      unit: product.unit || 'UN',
+      unit: 'UN',
     })),
     monthlyRevenue,
     monthlyProfit,
@@ -201,7 +213,7 @@ export async function dashboardService(companyId: string) {
       id: product.id,
       name: product.name,
       quantity: product.stock,
-      unit: product.unit || 'UN',
+      unit: 'UN',
     })),
     salesByMonth: monthlySeries.map((item) => ({
       month: item.month,
@@ -226,12 +238,9 @@ type CompletedSale = {
   items?: Array<{
     quantity: number
     subtotal: unknown
-    productName: string
-    unit: string
     product: {
       id: string
       name: string
-      unit: string
     }
   }>
 }
@@ -282,10 +291,10 @@ function buildTopProducts(sales: CompletedSale[]) {
     sale.items?.forEach((item) => {
       const current = products.get(item.product.id) || {
         id: item.product.id,
-        name: item.productName || item.product.name,
+        name: item.product.name,
         quantity: 0,
         revenue: 0,
-        unit: item.unit || item.product.unit || 'UN',
+        unit: 'UN',
       }
 
       current.quantity += item.quantity
