@@ -24,6 +24,9 @@ export async function listSalesService(companyId: string) {
           },
         },
       },
+      receivable: {
+        include: { installments: { orderBy: { number: 'asc' } } },
+      },
     },
     orderBy: {
       createdAt: 'desc',

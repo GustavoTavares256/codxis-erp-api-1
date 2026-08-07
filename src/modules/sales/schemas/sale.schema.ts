@@ -9,6 +9,9 @@ export const createSaleSchema = z.object({
     'CASH',
     'CARD',
   ]),
+  paymentCondition: z.enum(['CASH', 'INSTALLMENT']).default('CASH'),
+  installmentsCount: z.coerce.number().int().min(1).max(120).default(1),
+  firstDueDate: z.coerce.date().optional(),
 
   items: z
     .array(

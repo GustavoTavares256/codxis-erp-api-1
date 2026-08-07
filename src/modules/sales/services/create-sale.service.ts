@@ -1,11 +1,18 @@
 import { prisma } from '../../../shared/database/prisma'
 import type { CreateSaleInput } from '../schemas/sale.schema'
+import { buildInstallments } from '../../payments/services/installment-calculator'
 
 export async function createSaleService(
   companyId: string,
   userId: string,
   data: CreateSaleInput,
 ) {
+  if (data.paymentCondition === 'INSTALLMENT' && !data.customerId) {
+    throw new Error('Selecione um cliente para vendas a prazo')
+  }
+  if (data.paymentCondition === 'INSTALLMENT' && !data.firstDueDate) {
+    throw new Error('Informe o primeiro vencimento')
+  }
   const products = await prisma.product.findMany({
     where: {
       companyId,
@@ -45,6 +52,7 @@ export async function createSaleService(
         userId,
         customerId: data.customerId,
         paymentMethod: data.paymentMethod,
+        paymentCondition: data.paymentCondition,
         totalAmount,
         items: {
           create: data.items.map((item) => {
@@ -92,6 +100,21 @@ export async function createSaleService(
           companyId,
         },
       })
+    }
+
+    if (data.paymentCondition === 'INSTALLMENT') {
+      const firstDueDate = new Date(data.firstDueDate!)
+      const installments = buildInstallments(totalAmount, data.installmentsCount, firstDueDate)
+      await tx.receivable.create({ data: {
+        companyId, customerId: data.customerId, saleId: createdSale.id,
+        description: `Venda #${createdSale.id.slice(0, 8)}`, totalAmount,
+        installments: { create: installments },
+      } })
+    } else {
+      await tx.financialTransaction.create({ data: {
+        companyId, saleId: createdSale.id, description: `Venda #${createdSale.id.slice(0, 8)}`,
+        amount: totalAmount, type: 'INCOME', status: 'PAID', paidAt: new Date(),
+      } })
     }
 
     return createdSale

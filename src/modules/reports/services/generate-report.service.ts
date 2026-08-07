@@ -176,12 +176,19 @@ async function generateFinancialReport(
       createdAt: 'desc',
     },
   })
+  const installments = await prisma.paymentInstallment.findMany({
+    where: { receivable: { companyId, status: { not: 'CANCELED' } }, status: { not: 'CANCELED' } },
+    include: { receivable: { include: { customer: { select: { name: true } } } } },
+    orderBy: { dueDate: 'asc' },
+  })
   const income = transactions
     .filter((transaction) => transaction.type === 'INCOME')
     .reduce((acc, transaction) => acc + Number(transaction.amount), 0)
   const expense = transactions
     .filter((transaction) => transaction.type === 'EXPENSE')
     .reduce((acc, transaction) => acc + Number(transaction.amount), 0)
+  const pending = installments.reduce((acc, item) => acc + Math.max(Number(item.amount) - Number(item.paidAmount), 0), 0)
+  const overdue = installments.filter(item => item.dueDate < new Date() && item.status !== 'PAID').reduce((acc, item) => acc + Math.max(Number(item.amount) - Number(item.paidAmount), 0), 0)
 
   const buffer = await generateReportPdf({
     title: 'Relatorio Financeiro',
@@ -191,6 +198,8 @@ async function generateFinancialReport(
       metric('Receitas', formatCurrency(income)),
       metric('Despesas', formatCurrency(expense)),
       metric('Resultado', formatCurrency(income - expense)),
+      metric('A receber', formatCurrency(pending)),
+      metric('Em atraso', formatCurrency(overdue)),
     ],
     columns: [
       { key: 'date', label: 'Data', width: 70 },
@@ -199,13 +208,19 @@ async function generateFinancialReport(
       { key: 'status', label: 'Status', width: 80 },
       { key: 'amount', label: 'Valor', width: 105, align: 'right' },
     ],
-    rows: transactions.map((transaction) => ({
+    rows: [...transactions.map((transaction) => ({
       date: formatDate(transaction.createdAt),
       description: transaction.description,
       type: transaction.type,
       status: transaction.status,
       amount: formatCurrency(Number(transaction.amount)),
-    })),
+    })), ...installments.filter(item => item.status !== 'PAID').map(item => ({
+      date: formatDate(item.dueDate),
+      description: `${item.receivable.customer?.name || 'Sem cliente'} - ${item.receivable.description} (${item.number})`,
+      type: 'A RECEBER',
+      status: item.dueDate < new Date() ? 'ATRASADO' : item.status,
+      amount: formatCurrency(Math.max(Number(item.amount) - Number(item.paidAmount), 0)),
+    }))],
   })
 
   return report('financeiro', buffer)

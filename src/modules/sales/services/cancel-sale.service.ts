@@ -11,6 +11,7 @@ export async function cancelSaleService(
     },
     include: {
       items: true,
+      receivable: { include: { installments: { include: { receipts: true } } } },
     },
   })
 
@@ -20,6 +21,9 @@ export async function cancelSaleService(
 
   if (sale.status === 'CANCELED') {
     throw new Error('Venda já está cancelada')
+  }
+  if (sale.receivable?.installments.some((item) => item.receipts.length > 0)) {
+    throw new Error('Não é possível cancelar uma venda que já possui recebimentos')
   }
 
   const canceledSale = await prisma.$transaction(async (tx) => {
@@ -57,6 +61,11 @@ export async function cancelSaleService(
         },
       })
     }
+    if (sale.receivable) {
+      await tx.paymentInstallment.updateMany({ where: { receivableId: sale.receivable.id }, data: { status: 'CANCELED' } })
+      await tx.receivable.update({ where: { id: sale.receivable.id }, data: { status: 'CANCELED' } })
+    }
+    await tx.financialTransaction.updateMany({ where: { saleId: sale.id }, data: { status: 'CANCELED' } })
 
     return updatedSale
   })
