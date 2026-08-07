@@ -11,7 +11,10 @@ const envSchema = z.object({
 const env = envSchema.parse(process.env)
 const prisma = new PrismaClient({
   adapter: new PrismaMariaDb(
-    env.DATABASE_URL.replace(/^mysql:\/\//, 'mariadb://'),
+    env.DATABASE_URL
+      .trim()
+      .replace(/^DATABASE_URL\s*=\s*/i, '')
+      .replace(/^mysql:\/\//i, 'mariadb://'),
   ),
 })
 
