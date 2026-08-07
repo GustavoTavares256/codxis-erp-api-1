@@ -7,7 +7,7 @@ import {
 } from '../services/generate-report.service'
 
 const paramsSchema = z.object({
-  type: z.enum(['stock', 'sales', 'financial', 'customers']),
+  type: z.enum(['stock', 'sales', 'financial', 'customers', 'payments']),
 })
 
 const dateSchema = z
@@ -20,6 +20,7 @@ const querySchema = z
     date: dateSchema.optional(),
     startDate: dateSchema.optional(),
     endDate: dateSchema.optional(),
+    status: z.enum(['PENDING', 'PARTIAL', 'PAID', 'OVERDUE', 'CANCELED']).optional(),
   })
   .superRefine((query, context) => {
     if (query.date) return

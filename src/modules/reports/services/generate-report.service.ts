@@ -6,12 +6,13 @@ import {
   type ReportMetric,
 } from './report-pdf.service'
 
-export type ReportType = 'stock' | 'sales' | 'financial' | 'customers'
+export type ReportType = 'stock' | 'sales' | 'financial' | 'customers' | 'payments'
 
 export type ReportFilters = {
   date?: string
   startDate?: string
   endDate?: string
+  status?: 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CANCELED'
 }
 
 type ReportConfig = {
@@ -40,8 +41,69 @@ export async function generateReportService(
   if (type === 'stock') return generateStockReport(companyId, company)
   if (type === 'sales') return generateSalesReport(companyId, company, filters)
   if (type === 'financial') return generateFinancialReport(companyId, company)
+  if (type === 'payments') return generatePaymentsReport(companyId, company, filters)
 
   return generateCustomersReport(companyId, company)
+}
+
+async function generatePaymentsReport(
+  companyId: string,
+  company: ReportCompany,
+  filters: ReportFilters,
+): Promise<ReportConfig> {
+  const period = filters.date || filters.startDate ? resolveSalesPeriod(filters) : null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const installments = await prisma.paymentInstallment.findMany({
+    where: {
+      receivable: { companyId },
+      ...(period ? { dueDate: { gte: period.start, lt: period.end } } : {}),
+    },
+    include: {
+      receivable: { include: { customer: { select: { name: true } } } },
+    },
+    orderBy: { dueDate: 'asc' },
+  })
+  const rows = installments.map((item) => {
+    const balance = Math.max(Number(item.amount) - Number(item.paidAmount), 0)
+    const status = item.status === 'PARTIALLY_PAID'
+      ? 'PARTIAL'
+      : item.dueDate < today && item.status === 'PENDING' ? 'OVERDUE' : item.status
+    return { item, balance, status }
+  }).filter((row) => !filters.status || row.status === filters.status)
+
+  const buffer = await generateReportPdf({
+    title: 'Relatório Detalhado de Pagamentos',
+    company,
+    totals: [
+      metric('Parcelas', rows.length),
+      metric('Valor total', formatCurrency(rows.reduce((sum, row) => sum + Number(row.item.amount), 0))),
+      metric('Recebido', formatCurrency(rows.reduce((sum, row) => sum + Number(row.item.paidAmount), 0))),
+      metric('Saldo', formatCurrency(rows.reduce((sum, row) => sum + row.balance, 0))),
+    ],
+    columns: [
+      { key: 'customer', label: 'Cliente', width: 125 },
+      { key: 'description', label: 'Descrição', width: 145 },
+      { key: 'installment', label: 'Parc.', width: 42 },
+      { key: 'dueDate', label: 'Vencimento', width: 72 },
+      { key: 'status', label: 'Status', width: 70 },
+      { key: 'amount', label: 'Valor', width: 75, align: 'right' },
+      { key: 'paid', label: 'Recebido', width: 75, align: 'right' },
+      { key: 'balance', label: 'Saldo', width: 75, align: 'right' },
+    ],
+    rows: rows.map(({ item, balance, status }) => ({
+      customer: item.receivable.customer?.name || 'Sem cliente',
+      description: item.receivable.description,
+      installment: item.number,
+      dueDate: formatDate(item.dueDate),
+      status,
+      amount: formatCurrency(Number(item.amount)),
+      paid: formatCurrency(Number(item.paidAmount)),
+      balance: formatCurrency(balance),
+    })),
+  })
+
+  return report('pagamentos', buffer)
 }
 
 async function generateStockReport(

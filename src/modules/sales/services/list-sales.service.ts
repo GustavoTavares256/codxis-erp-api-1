@@ -33,5 +33,10 @@ export async function listSalesService(companyId: string) {
     },
   })
 
-  return sales
+  return sales.map((sale) => ({
+    ...sale,
+    paymentTerm: sale.paymentCondition === 'INSTALLMENT' ? 'INSTALLMENTS' : 'CASH',
+    installmentCount: sale.receivable?.installments.length ?? 1,
+    firstDueDate: sale.receivable?.installments[0]?.dueDate,
+  }))
 }

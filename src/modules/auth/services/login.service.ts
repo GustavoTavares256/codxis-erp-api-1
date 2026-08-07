@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify'
 
 import { prisma } from '../../../shared/database/prisma'
 import type { LoginInput } from '../schemas/login.schema'
+import { AppError } from '../../../shared/errors/app-error'
 
 const COMPANY_ROLES = ['ADMIN', 'MANAGER', 'EMPLOYEE']
 
@@ -17,13 +18,13 @@ export async function loginService(app: FastifyInstance, data: LoginInput) {
   })
 
   if (!user) {
-    throw new Error('E-mail ou senha invalidos')
+    throw new AppError('E-mail ou senha invalidos', 401)
   }
 
   const passwordMatches = await bcrypt.compare(data.password, user.password)
 
   if (!passwordMatches) {
-    throw new Error('E-mail ou senha invalidos')
+    throw new AppError('E-mail ou senha invalidos', 401)
   }
 
   if (user.role === 'SUPER_ADMIN' && user.companyId) {

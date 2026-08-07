@@ -9,8 +9,10 @@ export const createSaleSchema = z.object({
     'CASH',
     'CARD',
   ]),
-  paymentCondition: z.enum(['CASH', 'INSTALLMENT']).default('CASH'),
-  installmentsCount: z.coerce.number().int().min(1).max(120).default(1),
+  paymentCondition: z.enum(['CASH', 'INSTALLMENT']).optional(),
+  paymentTerm: z.enum(['CASH', 'INSTALLMENTS']).optional(),
+  installmentsCount: z.coerce.number().int().min(1).max(120).optional(),
+  installmentCount: z.coerce.number().int().min(1).max(120).optional(),
   firstDueDate: z.coerce.date().optional(),
 
   items: z
@@ -25,7 +27,11 @@ export const createSaleSchema = z.object({
       }),
     )
     .min(1),
-})
+}).transform((data) => ({
+  ...data,
+  paymentCondition: data.paymentCondition ?? (data.paymentTerm === 'INSTALLMENTS' ? 'INSTALLMENT' : 'CASH'),
+  installmentsCount: data.installmentsCount ?? data.installmentCount ?? 1,
+}))
 
 export type CreateSaleInput = z.infer<
   typeof createSaleSchema

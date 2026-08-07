@@ -7,6 +7,7 @@ import { createSaleController } from '../controllers/create-sale.controller'
 import { listSalesController } from '../controllers/list-sales.controller'
 import { getSaleByIdController } from '../controllers/get-sale-by-id.controller'
 import { cancelSaleController } from '../controllers/cancel-sale.controller'
+import { updateSaleController } from '../controllers/update-sale.controller'
 
 export async function salesRoutes(app: FastifyInstance) {
   app.post(
@@ -29,6 +30,11 @@ export async function salesRoutes(app: FastifyInstance) {
       ],
     },
     listSalesController,
+  )
+  app.put(
+    '/:id',
+    { preHandler: [ensureAuthenticated, ensureCompanyActive] },
+    updateSaleController,
   )
 
   app.get(

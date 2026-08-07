@@ -108,6 +108,7 @@ export async function createSaleService(
       await tx.receivable.create({ data: {
         companyId, customerId: data.customerId, saleId: createdSale.id,
         description: `Venda #${createdSale.id.slice(0, 8)}`, totalAmount,
+        paymentMethod: data.paymentMethod,
         installments: { create: installments },
       } })
     } else {
