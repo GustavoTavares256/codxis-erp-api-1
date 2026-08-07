@@ -3,7 +3,11 @@ import { PrismaMariaDb } from '@prisma/adapter-mariadb'
 
 import { env } from '../../config/env'
 
-const adapter = new PrismaMariaDb(env.DATABASE_URL)
+// Prisma's schema/CLI expects a `mysql://` URL, while the MariaDB driver
+// adapter expects the equivalent `mariadb://` protocol at runtime.
+const runtimeDatabaseUrl = env.DATABASE_URL.replace(/^mysql:\/\//, 'mariadb://')
+
+const adapter = new PrismaMariaDb(runtimeDatabaseUrl)
 
 export const prisma = new PrismaClient({
   adapter,
