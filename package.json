@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/scripts/start-production.js",
-    "start:prod": "node dist/scripts/start-production.js",
+    "start": "node dist/server.js",
+    "start:prod": "node dist/server.js",
+    "start:migrate": "node dist/scripts/start-production.js",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/**/*.test.ts",
     "seed:production": "tsx scripts/seed-production.ts",
