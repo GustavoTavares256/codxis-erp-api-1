@@ -3,13 +3,13 @@ import type { Connection, SqlError } from 'mariadb'
 
 import { env } from './config/env'
 import { app } from './app'
-import { runtimeDatabaseUrl } from './shared/database/prisma'
+import { databaseConfig } from './shared/database/prisma'
 
 async function diagnoseDatabaseConnection() {
   let connection: Connection | undefined
 
   try {
-    connection = await mariadb.createConnection(runtimeDatabaseUrl)
+    connection = await mariadb.createConnection(databaseConfig)
     await connection.query('SELECT 1')
     app.log.info({ event: 'database_connection_ok' })
   } catch (error) {
