@@ -10,7 +10,17 @@ const runtimeDatabaseUrl = env.DATABASE_URL
   .replace(/^DATABASE_URL\s*=\s*/i, '')
   .replace(/^mysql:\/\//i, 'mariadb://')
 
-const adapter = new PrismaMariaDb(runtimeDatabaseUrl)
+const adapter = new PrismaMariaDb(runtimeDatabaseUrl, {
+  onConnectionError(error) {
+    console.error({
+      event: 'database_connection_error',
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      message: error.message,
+    })
+  },
+})
 
 export const prisma = new PrismaClient({
   adapter,
