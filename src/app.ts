@@ -2,12 +2,15 @@ import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import multipart from "@fastify/multipart";
 import Fastify from "fastify";
+import mariadb from "mariadb";
+import type { SqlError } from "mariadb";
 
 import { env } from "./config/env";
 import { loggerConfig } from "./config/logger";
 import { errorHandler } from "./shared/errors/error-handler";
 import { registerHooks } from "./shared/hooks";
 import { registerMiddlewares } from "./shared/middlewares";
+import { databaseConfig } from "./shared/database/prisma";
 import { registerModules } from "./modules";
 
 export function buildApp() {
@@ -45,6 +48,28 @@ export function buildApp() {
     return {
       status: "ok",
     };
+  });
+
+  app.get("/health/database", async (_request, reply) => {
+    let connection: Awaited<ReturnType<typeof mariadb.createConnection>> | undefined;
+
+    try {
+      connection = await mariadb.createConnection(databaseConfig);
+      await connection.query("SELECT 1");
+
+      return { status: "ok" };
+    } catch (error) {
+      const databaseError = error as SqlError;
+
+      return reply.status(503).send({
+        status: "error",
+        code: databaseError.code ?? "UNKNOWN_DATABASE_ERROR",
+        errno: databaseError.errno ?? null,
+        sqlState: databaseError.sqlState ?? null,
+      });
+    } finally {
+      await connection?.end();
+    }
   });
 
   registerHooks(app);
